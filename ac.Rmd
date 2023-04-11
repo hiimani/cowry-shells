@@ -1,0 +1,169 @@
+---
+title: "Testing the Fairness of Cowry Shells as Binary Dice"
+author: "Himani Yalamaddi, Saahas Dobbala, and Sahana Dobbala"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(stringr)
+library(ggplot2)
+library(knitr)
+library(tidyverse)
+library(formattable)
+```
+
+## Introduction 
+
+The shells of cowries (a common sea snail), have been used as currencies, religious objects, and jewelry in global cultures for centuries (Cowrie Shells and Trade Power, n.d.). In this informal report, we'll explore the use of cowry shells as binary dice in board games and test their fairness with a small experiment using Ashta Chamma, an ancient South Asian board game. We found little research on the fairness of cowry shells (each shell is shaped differently, making consistency difficult), so we hope to simply contribute to the discussion.
+
+### Cowry Shells in Ashta Chamma Gameplay
+
+Ashta Chamma (also known as Chowka Bara, Daayam, and more) uses cowry shells to implement randomness. In the version of Ashta Chamma we tested, 4 cowry shells are rolled simultaneously to simulate a die with 5 outcomes (1, 2, 3, 4, and 8):  
+
+```{r, echo = F}
+dice_outcomes <- data.frame(outcomes = c(1, 2, 3, 4, 8), 
+                            occurence = c("1 shell flat-side up", 
+                                      "2 shells flat-side up", 
+                                      "3 shells flat-side up", 
+                                      "4 shells flat-side up", 
+                                      "0 shells flat-side up"))
+kable(dice_outcomes, col.names = c("Outcome", "Occurs when"), align = "cl")
+``` 
+
+Note that during gameplay, 4 and 8 are the most desired outcomes -- 8 even more so than 4. 
+
+All players in our casual focus group had an understanding that "2" was the most common roll, followed by "1 and 3" and then "4 and 8." Between 4 and 8, however, players disagreed on which was rolled more often, but generally agreed that cowry shells are fair. Our aim is to find statistical evidence supporting this claim.
+\newpage 
+
+### Hypothesis Development 
+
+If we view a cowry shell roll as a single Bernoulli trial ("flat-side up" or "flat-side down"), we can model a roll of 4 shells with $X \sim Binom(4, p)$, where $p$, the probability of a shell landing "flat side up" is our unknown. The focus group pointed to a possible population parameter of $p = 0.5$, like a fair coin. Our hypothesis, then, is that an individual cowry shell is fair: $H_0: p = 0.5$. 
+
+If this is true, we expect the proportion of each outcome in our experiment to be similar to the following, as calculated by the binomial distribution formula below: 
+
+```{r, echo = F}
+# Table of expected
+exp_out <-  0:4
+exp_prop <- c(.0625, .25, .375, .25, .0625)
+              
+expected <- data.frame(outcomes = exp_out, 
+                       proportions = exp_prop)
+
+kable(expected, col.names = c("x", "$P(X = x)$"))
+
+``` 
+
+$$ P(X = x) = \frac{n!}{(n-x)!x!} \times (.5)^x \times (.5)^{n - x} $$ 
+
+## Methods
+
+### Data Collection 
+
+```{r, echo = F, results = "hide"}
+ac_raw <- readLines("ac_raw.txt")
+
+# Create ac.text by spacing out raw data and read into dataframe
+# write(as.numeric(unlist(strsplit(ac_raw, ""))), file = "ac.txt", ncolumns = 1)
+# ac <- read.csv(file = "ac.txt", sep = " ", col.names = "rolls", header = F)
+
+# Space out data and read into dataframe
+ac <- data.frame(rolls = as.numeric(unlist(strsplit(ac_raw, ""))))
+
+# Get total observations
+bign <- nrow(ac)
+```
+
+`r bign` rolls were documented over the course of one week while observing casual games of Ashta Chamma. All rolls were conducted with a single set of cowry shells, limiting the scope of our experiment. Data was stored in a simple text file, and can be found raw (ac_raw.txt) and cleaned (ac.txt) in the project folder. 
+
+
+
+### Initial Exploration 
+
+We recoded "8" as "0" (to indicate 0/4 shells landing flat-side up), to create a frequency table and histogram for our observed outcomes. The distribution of the rolls does not follow the uniform distribution of a fair die, and instead appears to follow a binomial distribution expected of binary dice, as hypothesized.
+
+```{r, echo = F}
+# Recode "8" as "0"
+ac$recoded_rolls <- ifelse(ac$rolls == 8, 0, ac$rolls)
+
+# Table of results
+actable <- table(ac$recoded_rolls)
+acprop <- prop.table(actable)
+actotal <- cbind(addmargins(actable), addmargins(round(acprop, 4)))
+kable(actotal, col.names = c("Frequency", "Proportion"))
+``` 
+
+Notice in the histogram below that 4 and 3 -- which require more flat-side *up* rolls -- appear more often than their flat-side *down* counterparts, 0 and 1. A statistical test is needed to be confident that this discrepancy is truly due to randomness.
+
+```{r, out.width="53%", echo = F, fig.align='center'}
+# Get percent labels from exp_prop
+lexp_prop <- percent(exp_prop)
+
+# Plot frequency distribution
+propac <- prop.table(table(ac$recoded_rolls))
+ggplot(ac, aes(x = recoded_rolls)) + 
+  geom_histogram(aes(y = after_stat(count / sum(count))), 
+                 bins = 5, 
+                 color = "black", 
+                 fill = "white") + 
+  scale_y_continuous(labels = scales::percent) + 
+  labs(title = "Distribution of rolls of 4 cowry shells", 
+       x = "Recoded roll outcome", 
+       y = "Percentage (%) of total rolls") + 
+  geom_hline(yintercept = lexp_prop[1], linetype = "dotted", col = "red") + 
+  geom_hline(yintercept = lexp_prop[2], linetype = "dotted", col = "blue") +
+  geom_hline(yintercept = lexp_prop[3], linetype = "dotted", col = "green") +
+  annotate("text", y = lexp_prop, x = 0, label = lexp_prop, vjust = -.25) + 
+  theme_minimal()
+
+```  
+
+### Hypothesis Testing 
+
+To test our hypothesis ($H_0: p = 0.5$), we use a Chi-Square test to compare the *observed* frequencies of each outcome with the *expected* probabilities for each.
+
+```{r, echo = F}
+# Get actual frequencies from actable
+act_freq <- as.vector(actable)
+
+# Recall expected proportion values can be found in the vector exp_prop
+
+# Conduct chi-square test
+ct <- chisq.test(act_freq, p = exp_prop)
+
+ct
+``` 
+
+The p-value from our Chi-Square test tells us that *if our cowry shells were fair* (landing flat-side up and down equally), the probability of our experimental data occurring by random chance is `r format(ct$p.value, scientific = F)` -- very, very small. Because it's so unlikely, we assume that our shells *must not be fair*, and $p \ne 0.5$. 
+
+### Confidence Interval
+
+So what might the true value of $p$ (the probability of an individual cowry shell landing flat-side up) be, if not $0.5$? To answer this, we looked at individual cowry shell rolls (total samples: `r format(bign * 4, scientific = F)`) and calculated a 95% confidence interval, which revealed that the true value of $p$ most likely lies between 0.515 and 0.533 -- *not fair*.
+
+```{r, echo = F}
+# Calculate total number of successes (flat-side up); separate EACH cowry shell
+ind_succ <- sum(ac$recoded_rolls)
+
+# Calculate total number of individual cowry shell rolls
+ind_total <- bign * 4
+
+# Calculate 95% confidence interval
+ind_test <- prop.test(x = ind_succ, n = ind_total, conf.level = .95, correct = T)
+
+ind_test$conf.int
+```
+
+
+
+
+## Results and Discussion 
+
+Our little experiment has shown that cowry shells as binary dice may not be reliably used as replacements for fair dice (due to the obvious binomial distribution of outcomes) *or* coins (due to the possibility of a bias towards landing flat-side up). Keep in mind, however, that our experiment is extremely limited by the single set of cowry shells tested -- it's possible that other styles or sets of cowry shells may be fair binary dice. Future experiments should involve testing a greater number of shells, in a variety of sizes. 
+
+The most interesting result is the possibility that Ashta Chamma purposefully incorporates the biased shells into gameplay, delegating the least likely outcome (8, with 0 shells flat-side up) the most desirable. Instead of a flaw, the bias in the shells becomes a feature of the game. 
+
+One example of these features possibly being problematic could be in Parcheesi/Pachisi. Pachisi, another ancient South Asian board game, traditionally uses 6 cowry shells as binary dice, which would be binomially distributed. Parcheesi (the American adaption), on the other hand, uses a typical 6-sided die, which is uniformly distributed. We imagine that gameplay and strategy would be significantly altered by the use of a 6-sided die as opposed to the traditional cowry shell. 
+
+## References 
+
+Cowrie Shells and Trade Power. (n.d.). National Museum of African American History and Culture. https://nmaahc.si.edu/cowrie-shells-and-trade-power 
