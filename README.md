@@ -3,7 +3,7 @@
 **in 100 characters**: a short + simple look into the use of cowry shells as binary dice -- we find that our set isn't fair!
 
 **what**: 
-- ac.pdf: this short lil report includes the histogram and tables i created to help my cousin understand what we were doing. also includes a quick chi-square test i ran to confirm that our cowry shells (and likely others) are *not fair*
+- ac.pdf: this short lil report includes the histogram, tables, and a chi-square test i ran to confirm that our set of cowry shells (and likely others) are *not fair*. includes helpful context and discussion surrounding our results! <3
 - ac.rmd: R Markdown file that created ac.pdf, includes all code
 - ac_raw.txt: raw text file we collected data with
 - ac.txt: cleaned up data
